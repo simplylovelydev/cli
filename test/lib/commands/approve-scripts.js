@@ -574,3 +574,59 @@ t.test('approve-scripts --all with only bundled deps has nothing to review', asy
   const pkg = JSON.parse(fs.readFileSync(resolve(prefix, 'package.json'), 'utf8'))
   t.notOk(pkg.allowScripts, 'no allowScripts written')
 })
+
+t.test('approve-scripts --pending --json with no unreviewed packages outputs empty allowScripts array', async t => {
+  const { npm, joinedOutput } = await mockNpm(t, {
+    prefixDir: setupProject({
+      allowScripts: { canvas: true },
+      withScripts: ['canvas'],
+    }),
+    config: { 'allow-scripts-pending': true, json: true },
+  })
+  await npm.exec('approve-scripts', [])
+  const parsed = JSON.parse(joinedOutput())
+  t.strictSame(parsed, { allowScripts: [] })
+})
+
+t.test('approve-scripts --pending --json with pending packages outputs JSON array', async t => {
+  const { npm, joinedOutput } = await mockNpm(t, {
+    prefixDir: setupProject({ withScripts: ['canvas', 'sharp'] }),
+    config: { 'allow-scripts-pending': true, json: true },
+  })
+  await npm.exec('approve-scripts', [])
+  const parsed = JSON.parse(joinedOutput())
+  t.ok(Array.isArray(parsed.allowScripts), 'output has allowScripts array')
+  t.equal(parsed.allowScripts.length, 2, 'array has 2 packages')
+  t.match(parsed.allowScripts[0], {
+    name: 'canvas',
+    version: '1.0.0',
+    key: 'canvas@1.0.0',
+    scripts: { install: 'echo install' },
+  })
+  t.match(parsed.allowScripts[1], {
+    name: 'sharp',
+    version: '1.0.0',
+    key: 'sharp@1.0.0',
+    scripts: { install: 'echo install' },
+  })
+})
+
+t.test('approve-scripts --all --json with no unreviewed packages outputs empty allowScripts array', async t => {
+  const { npm, joinedOutput } = await mockNpm(t, {
+    prefixDir: {
+      'package.json': JSON.stringify({ name: 'host', version: '1.0.0' }),
+      'package-lock.json': JSON.stringify({
+        name: 'host',
+        version: '1.0.0',
+        lockfileVersion: 3,
+        requires: true,
+        packages: { '': { name: 'host', version: '1.0.0' } },
+      }),
+      node_modules: {},
+    },
+    config: { all: true, json: true },
+  })
+  await npm.exec('approve-scripts', [])
+  const parsed = JSON.parse(joinedOutput())
+  t.strictSame(parsed, { allowScripts: [] })
+})
